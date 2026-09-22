@@ -1,22 +1,31 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-export default function ForgotPasswordPage() {
+export default function ResetPasswordPage() {
   const supabase = createClient();
+  const router = useRouter();
 
-  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleReset(e: React.FormEvent) {
     e.preventDefault();
     setMessage("");
+
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
+      return;
+    }
+
     setLoading(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
+    const { error } = await supabase.auth.updateUser({
+      password,
     });
 
     setLoading(false);
@@ -26,7 +35,8 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    setMessage("Check your email for the password reset link.");
+    router.push("/auth/login");
+    router.refresh();
   }
 
   return (
@@ -39,25 +49,38 @@ export default function ForgotPasswordPage() {
           </p>
 
           <h1 className="mt-10 text-3xl font-medium tracking-[-0.035em] text-[#161816]">
-            Reset your password
+            Set new password
           </h1>
-
-          <p className="mt-3 text-sm text-[#777b76]">
-            Enter the email linked to your account.
-          </p>
 
           <form onSubmit={handleReset} className="mt-8 space-y-5">
             <div>
               <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
-                Email
+                New password
               </label>
 
               <input
-                type="email"
+                type="password"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
+                minLength={8}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 8 characters"
+                className="h-11 w-full rounded-[9px] border border-[#dedfdd] px-3.5 text-sm outline-none transition focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
+                Confirm password
+              </label>
+
+              <input
+                type="password"
+                required
+                minLength={8}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Repeat your password"
                 className="h-11 w-full rounded-[9px] border border-[#dedfdd] px-3.5 text-sm outline-none transition focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
               />
             </div>
@@ -73,18 +96,9 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="h-11 w-full rounded-[9px] bg-[#176b52] text-sm font-medium text-white transition hover:bg-[#125b45] disabled:opacity-50"
             >
-              {loading ? "Sending..." : "Send reset link"}
+              {loading ? "Updating..." : "Update password"}
             </button>
           </form>
-
-          <p className="mt-6 text-center text-sm text-[#777b76]">
-            <a
-              href="/auth/login"
-              className="font-medium text-[#202320] hover:underline"
-            >
-              Back to sign in
-            </a>
-          </p>
         </div>
       </div>
     </main>
