@@ -1,164 +1,157 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import AuthShell from "@/components/auth-shell";
 
 export default function LoginPage() {
-  const supabase = createClient();
   const router = useRouter();
+  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: FormEvent) {
     e.preventDefault();
+
     setMessage("");
     setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    setLoading(false);
+    const { data, error } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
     if (error) {
+      setLoading(false);
       setMessage(error.message);
       return;
     }
 
-    router.push("/dashboard");
+    const { data: profile, error: profileError } =
+      await supabase
+        .from("profiles")
+        .select("is_admin, status")
+        .eq("id", data.user.id)
+        .single();
+
+    setLoading(false);
+
+    if (profileError) {
+      setMessage("Unable to load your account.");
+      return;
+    }
+
+    if (profile?.status === "suspended") {
+      router.push("/auth/suspended");
+      router.refresh();
+      return;
+    }
+
+    if (profile?.is_admin) {
+      router.push("/admin");
+    } else {
+      router.push("/dashboard");
+    }
+
     router.refresh();
   }
 
   return (
-    <main className="min-h-screen bg-[#f3f4f1] px-4 py-8 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center">
-        <div className="grid w-full overflow-hidden rounded-[20px] border border-[#e3e5e1] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.06)] lg:grid-cols-2">
+    <AuthShell mode="login">
+      <div>
 
-          {/* Left */}
-          <section className="hidden min-h-[640px] bg-[#eef3ef] p-10 lg:flex lg:flex-col">
-            <p className="text-lg font-semibold tracking-[-0.02em] text-[#161816]">
-              ISKOL
-            </p>
+        <h1 className="mt-3 text-[clamp(2.15rem,4vw,3.25rem)] font-semibold leading-[1] tracking-[-0.055em]">
+          Continue your work.
+        </h1>
 
-            <div className="my-auto">
-              <h1 className="max-w-sm text-[42px] font-medium leading-[1.08] tracking-[-0.04em] text-[#161816]">
-                Welcome back.
-              </h1>
+        <p className="mt-4 text-[15px] leading-6 text-muted-foreground">
+          Sign in to your ISKOL workspace.
+        </p>
 
-              <div className="mt-10 rounded-[14px] border border-[#dfe3df] bg-white p-5">
-                <div className="flex items-center justify-between border-b border-[#eceeeb] pb-4">
-                  <div>
-                    <p className="text-xs text-[#929690]">Next class</p>
-                    <p className="mt-1 text-sm font-medium text-[#1d201d]">
-                      Microbiology
-                    </p>
-                  </div>
+        <form
+          onSubmit={handleLogin}
+          className="mt-8 space-y-5"
+        >
+          <div>
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              Email
+            </label>
 
-                  <p className="text-sm text-[#666b66]">2:00 PM</p>
-                </div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+              className="input-premium h-12"
+            />
+          </div>
 
-                <div className="flex items-center justify-between pt-4">
-                  <div>
-                    <p className="text-xs text-[#929690]">Due tomorrow</p>
-                    <p className="mt-1 text-sm font-medium text-[#1d201d]">
-                      Laboratory Report
-                    </p>
-                  </div>
-
-                  <span className="h-2 w-2 rounded-full bg-[#176b52]" />
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Right */}
-          <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-12">
-            <div className="w-full max-w-sm">
-
-              <div className="mb-8 lg:hidden">
-                <p className="text-lg font-semibold tracking-[-0.02em]">
-                  ISKOL
-                </p>
-              </div>
-
-              <h2 className="text-3xl font-medium tracking-[-0.035em] text-[#161816]">
-                Sign in
-              </h2>
-
-              <form onSubmit={handleLogin} className="mt-8 space-y-5">
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
-                    Email
-                  </label>
-
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="h-11 w-full rounded-[9px] border border-[#dedfdd] bg-white px-3.5 text-sm outline-none transition focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
-                  />
-                </div>
-
-                <div>
-  <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
+          <div>
+  <label className="mb-2 block text-xs font-medium text-muted-foreground">
     Password
   </label>
 
   <input
     type="password"
-    required
     value={password}
-    onChange={(e) => setPassword(e.target.value)}
-    placeholder="Your password"
-    className="h-11 w-full rounded-[9px] border border-[#dedfdd] bg-white px-3.5 text-sm outline-none transition focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
+    onChange={(e) =>
+      setPassword(e.target.value)
+    }
+    placeholder="Enter your password"
+    autoComplete="current-password"
+    required
+    className="input-premium h-12"
   />
 
   <div className="mt-2 text-right">
-    <a
+    <Link
       href="/auth/forgot-password"
-      className="text-xs font-medium text-[#176b52] hover:underline"
+      className="text-xs font-medium text-primary transition-opacity hover:opacity-70"
     >
       Forgot password?
-    </a>
+    </Link>
   </div>
 </div>
 
-                {message && (
-                  <p className="text-sm text-[#666b66]">
-                    {message}
-                  </p>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="h-11 w-full rounded-[9px] bg-[#176b52] text-sm font-medium text-white transition hover:bg-[#125b45] disabled:opacity-50"
-                >
-                  {loading ? "Signing in..." : "Sign in"}
-                </button>
-              </form>
-
-              <p className="mt-6 text-center text-sm text-[#777b76]">
-                No account yet?{" "}
-                <a
-                  href="/auth/sign-up"
-                  className="font-medium text-[#202320] hover:underline"
-                >
-                  Create one
-                </a>
+          {message && (
+            <div className="rounded-xl border border-red-500/15 bg-red-500/[0.05] px-4 py-3">
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {message}
               </p>
             </div>
-          </section>
-        </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary h-12 w-full text-[15px]"
+          >
+            {loading
+              ? "Signing in..."
+              : "Continue"}
+          </button>
+        </form>
+
+        <p className="mt-6 text-sm text-muted-foreground">
+          New to ISKOL?{" "}
+          <Link
+            href="/auth/sign-up"
+            className="font-medium text-foreground transition-colors hover:text-primary"
+          >
+            Create an account
+          </Link>
+        </p>
       </div>
-    </main>
+    </AuthShell>
   );
 }

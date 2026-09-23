@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import LogoutButton from "@/components/logout-button";
+import AppShell from "@/components/app-shell";
 
 export const instant = false;
 
@@ -19,34 +19,79 @@ export default async function DashboardPage() {
   // Profile
   const { data: profile } = await supabase
     .from("profiles")
-    .select("display_name, is_admin")
+    .select("is_admin, status")
     .eq("id", user.id)
     .single();
 
-  // Admin accounts go to admin dashboard
+  if (profile?.status === "suspended") {
+    redirect("/auth/suspended");
+  }
+
   if (profile?.is_admin) {
     redirect("/admin");
   }
 
+  // Date
+  const today = new Date();
+
+  const dateLabel = new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(today);
+
+  const dayOfWeek = today.getDay();
+
+  // Subject count
+  const { count: subjectCount } = await supabase
+    .from("subjects")
+    .select("*", {
+      count: "exact",
+      head: true,
+    })
+    .eq("archived", false);
+
   // Subjects
   const { data: subjects } = await supabase
     .from("subjects")
-    .select("id, name, code, instructor")
+    .select(`
+      id,
+      name,
+      code,
+      instructor
+    `)
     .eq("archived", false)
-    .order("created_at", { ascending: false })
+    .order("created_at", {
+      ascending: false,
+    })
     .limit(6);
 
-  // Upcoming tasks
+  // Pending work count
+  const { count: pendingCount } = await supabase
+    .from("tasks")
+    .select("*", {
+      count: "exact",
+      head: true,
+    })
+    .eq("status", "pending");
+
+  // Upcoming work
   const { data: tasks } = await supabase
     .from("tasks")
-    .select("id, title, type, due_date, status")
+    .select(`
+      id,
+      title,
+      type,
+      due_date
+    `)
     .eq("status", "pending")
-    .order("due_date", { ascending: true })
+    .order("due_date", {
+      ascending: true,
+      nullsFirst: false,
+    })
     .limit(5);
 
-  // Today's schedules
-  const today = new Date().getDay();
-
+  // Today's classes
   const { data: schedules } = await supabase
     .from("subject_schedules")
     .select(`
@@ -60,251 +105,293 @@ export default async function DashboardPage() {
         code
       )
     `)
-    .eq("day_of_week", today)
-    .order("start_time", { ascending: true });
+    .eq("day_of_week", dayOfWeek)
+    .order("start_time", {
+      ascending: true,
+    });
 
-  const displayName = profile?.display_name ?? "Iskolar";
+  const classesToday = schedules?.length ?? 0;
 
   return (
-    <main className="min-h-screen bg-[#f5f6f3] text-[#181a18]">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 hidden w-60 border-r border-[#e4e6e2] bg-white px-5 py-6 md:flex md:flex-col">
-        <p className="px-2 text-lg font-semibold tracking-[-0.02em]">
-          ISKOL
+    <AppShell>
+      {/* Header */}
+      <header>
+        <h1 className="text-[26px] font-semibold tracking-[-0.04em]">
+          Dashboard
+        </h1>
+
+        <p className="mt-1 text-sm text-muted-foreground">
+          {dateLabel}
         </p>
+      </header>
 
-        <nav className="mt-10 space-y-1">
-          <NavLink href="/dashboard" label="Home" active />
-          <NavLink href="/subjects" label="Subjects" />
-          <NavLink href="/notes" label="Notes" />
-          <NavLink href="/calendar" label="Calendar" />
-          <NavLink href="/profile" label="Profile" />
-        </nav>
-
-        <div className="mt-auto px-3">
-          <LogoutButton />
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <section className="pb-24 md:ml-60 md:pb-0">
-        <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8 md:py-10">
-          {/* Header */}
-          <header className="flex items-start justify-between">
-            <div>
-              <p className="text-sm text-[#7a7e79]">
-                Welcome back
-              </p>
-
-              <h1 className="mt-1 text-3xl font-medium tracking-[-0.035em]">
-                {displayName}
-              </h1>
-            </div>
-
-            <p className="text-lg font-semibold md:hidden">
-              ISKOL
+      {/* Summary */}
+      <section className="mt-8 grid gap-3 sm:grid-cols-3">
+        {/* Classes */}
+        <Link
+          href="/calendar"
+          className="group rounded-[16px] border border-border bg-white p-5 transition-all duration-200 hover:border-[#173c2d]/25 hover:shadow-[0_8px_30px_rgba(20,40,28,0.05)] dark:bg-card"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Classes today
             </p>
-          </header>
 
-          {/* Today + Upcoming */}
-          <div className="mt-10 grid gap-6 lg:grid-cols-[1.25fr_0.75fr]">
-            {/* Today */}
-            <section>
-              <h2 className="mb-4 text-lg font-medium">
-                Today
-              </h2>
-
-              <div className="overflow-hidden rounded-[14px] border border-[#e2e4e0] bg-white">
-                {!schedules || schedules.length === 0 ? (
-                  <div className="px-6 py-14 text-center">
-                    <p className="text-sm text-[#858985]">
-                      No classes today.
-                    </p>
-                  </div>
-                ) : (
-                  schedules.map((schedule) => {
-                    const subject = Array.isArray(schedule.subjects)
-                      ? schedule.subjects[0]
-                      : schedule.subjects;
-
-                    return (
-                      <div
-                        key={schedule.id}
-                        className="flex items-center justify-between border-b border-[#eeeeec] px-5 py-4 last:border-0"
-                      >
-                        <div>
-                          <p className="font-medium">
-                            {subject?.name ?? "Subject"}
-                          </p>
-
-                          {schedule.location && (
-                            <p className="mt-1 text-sm text-[#7d817c]">
-                              {schedule.location}
-                            </p>
-                          )}
-                        </div>
-
-                        <p className="text-sm text-[#666b66]">
-                          {schedule.start_time.slice(0, 5)}
-                        </p>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </section>
-
-            {/* Upcoming */}
-            <section>
-              <h2 className="mb-4 text-lg font-medium">
-                Upcoming
-              </h2>
-
-              <div className="overflow-hidden rounded-[14px] border border-[#e2e4e0] bg-white">
-                {!tasks || tasks.length === 0 ? (
-                  <div className="px-6 py-14 text-center">
-                    <p className="text-sm text-[#858985]">
-                      Nothing due soon.
-                    </p>
-                  </div>
-                ) : (
-                  tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="border-b border-[#eeeeec] px-5 py-4 last:border-0"
-                    >
-                      <p className="text-sm font-medium">
-                        {task.title}
-                      </p>
-
-                      <div className="mt-1 flex items-center justify-between text-xs text-[#858985]">
-                        <span className="capitalize">
-                          {task.type}
-                        </span>
-
-                        {task.due_date && (
-                          <span>
-                            {new Date(
-                              task.due_date
-                            ).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
+            <ArrowIcon className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
           </div>
 
-          {/* Subjects */}
-          <section className="mt-10">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-medium">
-                Subjects
-              </h2>
+          <p className="mt-5 text-[32px] font-semibold leading-none tracking-[-0.055em]">
+            {classesToday}
+          </p>
 
-              <Link
-                href="/subjects"
-                className="text-sm font-medium text-[#176b52]"
-              >
-                View all
-              </Link>
-            </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            {classesToday === 1
+              ? "class scheduled"
+              : "classes scheduled"}
+          </p>
+        </Link>
 
-            {!subjects || subjects.length === 0 ? (
-              <div className="rounded-[14px] border border-dashed border-[#d9dcd7] bg-white px-6 py-12 text-center">
-                <p className="text-sm text-[#858985]">
-                  No subjects yet.
-                </p>
+        {/* Pending */}
+        <div className="rounded-[16px] border border-border bg-white p-5 dark:bg-card">
+          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+            Pending work
+          </p>
+
+          <p className="mt-5 text-[32px] font-semibold leading-none tracking-[-0.055em]">
+            {pendingCount ?? 0}
+          </p>
+
+          <p className="mt-3 text-sm text-muted-foreground">
+            {(pendingCount ?? 0) === 1
+              ? "item remaining"
+              : "items remaining"}
+          </p>
+        </div>
+
+        {/* Subject count */}
+        <Link
+          href="/subjects"
+          className="group rounded-[16px] border border-border bg-white p-5 transition-all duration-200 hover:border-[#173c2d]/25 hover:shadow-[0_8px_30px_rgba(20,40,28,0.05)] dark:bg-card"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Subjects
+            </p>
+
+            <ArrowIcon className="h-4 w-4 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
+          </div>
+
+          <p className="mt-5 text-[32px] font-semibold leading-none tracking-[-0.055em]">
+            {subjectCount ?? 0}
+          </p>
+
+          <p className="mt-3 text-sm text-muted-foreground">
+            {(subjectCount ?? 0) === 1
+              ? "active subject"
+              : "active subjects"}
+          </p>
+        </Link>
+      </section>
+
+      {/* Today + Upcoming */}
+      <section className="mt-12 grid gap-12 xl:grid-cols-[1.35fr_0.65fr]">
+        {/* Today */}
+        <div>
+          <div className="flex items-center justify-between border-b border-border pb-4">
+            <h2 className="text-[19px] font-semibold tracking-[-0.03em]">
+              Today
+            </h2>
+
+            <Link
+              href="/calendar"
+              className="text-sm font-medium text-primary transition hover:opacity-60"
+            >
+              Calendar
+            </Link>
+          </div>
+
+          <div className="divide-y divide-border">
+            {!schedules || schedules.length === 0 ? (
+              <div className="py-9 text-sm text-muted-foreground">
+                No classes scheduled today.
               </div>
             ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {subjects.map((subject) => (
-                  <Link
-                    key={subject.id}
-                    href={`/subjects/${subject.id}`}
-                    className="rounded-[12px] border border-[#e2e4e0] bg-white p-5 transition hover:border-[#cdd2cd]"
+              schedules.map((schedule) => {
+                const subject = Array.isArray(schedule.subjects)
+                  ? schedule.subjects[0]
+                  : schedule.subjects;
+
+                return (
+                  <div
+                    key={schedule.id}
+                    className="grid gap-3 py-5 sm:grid-cols-[85px_1fr] sm:items-center"
                   >
-                    <p className="font-medium">
-                      {subject.name}
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {formatTime(schedule.start_time)}
+                      </p>
+
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        {formatTime(schedule.end_time)}
+                      </p>
+                    </div>
+
+                    <div className="min-w-0">
+                      <p className="truncate text-[15px] font-semibold tracking-[-0.02em]">
+                        {subject?.name ?? "Subject"}
+                      </p>
+
+                      {(subject?.code || schedule.location) && (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {[subject?.code, schedule.location]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+
+        {/* Upcoming */}
+        <div>
+          <div className="border-b border-border pb-4">
+            <h2 className="text-[19px] font-semibold tracking-[-0.03em]">
+              Upcoming
+            </h2>
+          </div>
+
+          <div className="divide-y divide-border">
+            {!tasks || tasks.length === 0 ? (
+              <div className="py-9 text-sm text-muted-foreground">
+                Nothing due soon.
+              </div>
+            ) : (
+              tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-center justify-between gap-5 py-4"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">
+                      {task.title}
                     </p>
 
+                    <p className="mt-1 text-xs capitalize text-muted-foreground">
+                      {task.type}
+                    </p>
+                  </div>
+
+                  {task.due_date && (
+                    <p className="shrink-0 text-xs font-medium text-muted-foreground">
+                      {new Date(task.due_date).toLocaleDateString(
+                        "en-US",
+                        {
+                          month: "short",
+                          day: "numeric",
+                        }
+                      )}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Subjects */}
+      <section className="mt-12">
+        <div className="flex items-center justify-between border-b border-border pb-4">
+          <h2 className="text-[19px] font-semibold tracking-[-0.03em]">
+            Subjects
+          </h2>
+
+          <Link
+            href="/subjects"
+            className="text-sm font-medium text-primary transition hover:opacity-60"
+          >
+            View all
+          </Link>
+        </div>
+
+        {!subjects || subjects.length === 0 ? (
+          <div className="py-10 text-sm text-muted-foreground">
+            No subjects yet.
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {subjects.map((subject) => (
+              <Link
+                key={subject.id}
+                href={`/subjects/${subject.id}`}
+                className="group flex min-h-[145px] flex-col rounded-[16px] border border-border bg-white p-5 transition-all duration-200 hover:-translate-y-[1px] hover:border-[#173c2d]/25 hover:shadow-[0_8px_28px_rgba(20,40,28,0.05)] dark:bg-card"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
                     {subject.code && (
-                      <p className="mt-1 text-sm text-[#858985]">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.09em] text-primary">
                         {subject.code}
                       </p>
                     )}
 
-                    {subject.instructor && (
-                      <p className="mt-4 text-sm text-[#727772]">
-                        {subject.instructor}
-                      </p>
-                    )}
-                  </Link>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
+                    <p
+                      className={`truncate text-[16px] font-semibold tracking-[-0.025em] ${
+                        subject.code ? "mt-2" : ""
+                      }`}
+                    >
+                      {subject.name}
+                    </p>
+                  </div>
+
+                  <ArrowIcon className="h-4 w-4 shrink-0 text-muted-foreground transition group-hover:translate-x-0.5 group-hover:text-primary" />
+                </div>
+
+                <div className="mt-auto pt-5">
+                  <p className="truncate text-sm text-muted-foreground">
+                    {subject.instructor || "No instructor"}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
       </section>
-
-      {/* Mobile navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-[#e3e5e1] bg-white md:hidden">
-        <div className="grid grid-cols-5">
-          <MobileLink href="/dashboard" label="Home" active />
-          <MobileLink href="/subjects" label="Subjects" />
-          <MobileLink href="/notes" label="Notes" />
-          <MobileLink href="/calendar" label="Calendar" />
-          <MobileLink href="/profile" label="Profile" />
-        </div>
-      </nav>
-    </main>
+    </AppShell>
   );
 }
 
-function NavLink({
-  href,
-  label,
-  active = false,
-}: {
-  href: string;
-  label: string;
-  active?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`block rounded-[8px] px-3 py-2.5 text-sm ${
-        active
-          ? "bg-[#eef3ef] font-medium text-[#176b52]"
-          : "text-[#666b66] hover:bg-[#f5f6f3]"
-      }`}
-    >
-      {label}
-    </Link>
-  );
+function formatTime(time: string) {
+  const [hours, minutes] = time.split(":");
+  const hour = Number(hours);
+
+  const suffix = hour >= 12 ? "PM" : "AM";
+  const twelveHour = hour % 12 || 12;
+
+  return `${twelveHour}:${minutes} ${suffix}`;
 }
 
-function MobileLink({
-  href,
-  label,
-  active = false,
+function ArrowIcon({
+  className,
 }: {
-  href: string;
-  label: string;
-  active?: boolean;
+  className?: string;
 }) {
   return (
-    <Link
-      href={href}
-      className={`py-4 text-center text-xs ${
-        active
-          ? "font-medium text-[#176b52]"
-          : "text-[#7c807b]"
-      }`}
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
     >
-      {label}
-    </Link>
+      <path d="M5 12h14" />
+      <path d="m13 6 6 6-6 6" />
+    </svg>
   );
 }

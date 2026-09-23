@@ -1,36 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import AuthShell from "@/components/auth-shell";
 
 export default function SignUpPage() {
+  const router = useRouter();
   const supabase = createClient();
 
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [privacyAccepted, setPrivacyAccepted] = useState(false);
+
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [acceptedPrivacy, setAcceptedPrivacy] = useState(false);
+
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleSignUp(e: React.FormEvent) {
+  async function handleSignUp(e: FormEvent) {
     e.preventDefault();
+
     setMessage("");
 
-    if (!termsAccepted || !privacyAccepted) {
-      setMessage("Please accept the Terms and Privacy Notice.");
+    if (!acceptedTerms || !acceptedPrivacy) {
+      setMessage(
+        "Please accept the Terms of Use and Privacy Notice."
+      );
+      return;
+    }
+
+    if (!displayName.trim()) {
+      setMessage("Please enter a codename.");
       return;
     }
 
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({
-      email,
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
       password,
       options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirmed`,
         data: {
-          display_name: displayName,
+          display_name: displayName.trim(),
           terms_version: "1.0",
           privacy_notice_version: "1.0",
           terms_accepted_at: new Date().toISOString(),
@@ -46,193 +61,159 @@ export default function SignUpPage() {
       return;
     }
 
-    setMessage("Check your email to verify your account.");
+    if (data.user && !data.session) {
+      router.push("/auth/check-email");
+      return;
+    }
+
+    router.push("/dashboard");
+    router.refresh();
   }
 
   return (
-    <main className="min-h-screen bg-[#f3f4f1] px-4 py-8 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center">
-        <div className="grid w-full overflow-hidden rounded-[20px] border border-[#e3e5e1] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.06)] lg:grid-cols-2">
+    <AuthShell mode="signup">
+      <div>
 
-          {/* Left */}
-          <section className="hidden min-h-[640px] bg-[#eef3ef] p-10 lg:flex lg:flex-col">
-            <p className="text-lg font-semibold tracking-[-0.02em] text-[#161816]">
-              ISKOL
+
+        <h1 className="mt-3 text-[clamp(2.15rem,4vw,3.25rem)] font-semibold leading-[1] tracking-[-0.055em]">
+          Create your space.
+        </h1>
+
+        <p className="mt-4 text-[15px] leading-6 text-muted-foreground">
+          Set up your ISKOL workspace.
+        </p>
+
+        <form
+          onSubmit={handleSignUp}
+          className="mt-7 space-y-4"
+        >
+          <div>
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              Codename
+            </label>
+
+            <input
+              value={displayName}
+              onChange={(e) =>
+                setDisplayName(e.target.value)
+              }
+              placeholder="StudyFox"
+              autoComplete="nickname"
+              required
+              className="input-premium h-11"
+            />
+
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              This is the name shown inside ISKOL.
             </p>
+          </div>
 
-            <div className="my-auto">
-              <h1 className="max-w-sm text-[42px] font-medium leading-[1.08] tracking-[-0.04em] text-[#161816]">
-                Your semester,
-                <br />
-                organized.
-              </h1>
+          <div>
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              Email
+            </label>
 
-              <div className="mt-10 rounded-[14px] border border-[#dfe3df] bg-white p-5">
-                <div className="flex items-center justify-between border-b border-[#eceeeb] pb-4">
-                  <div>
-                    <p className="text-xs text-[#929690]">Next class</p>
-                    <p className="mt-1 text-sm font-medium text-[#1d201d]">
-                      Microbiology
-                    </p>
-                  </div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) =>
+                setEmail(e.target.value)
+              }
+              placeholder="you@example.com"
+              autoComplete="email"
+              required
+              className="input-premium h-11"
+            />
+          </div>
 
-                  <p className="text-sm text-[#666b66]">2:00 PM</p>
-                </div>
+          <div>
+            <label className="mb-2 block text-xs font-medium text-muted-foreground">
+              Password
+            </label>
 
-                <div className="flex items-center justify-between pt-4">
-                  <div>
-                    <p className="text-xs text-[#929690]">Due tomorrow</p>
-                    <p className="mt-1 text-sm font-medium text-[#1d201d]">
-                      Laboratory Report
-                    </p>
-                  </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) =>
+                setPassword(e.target.value)
+              }
+              placeholder="Create a password"
+              autoComplete="new-password"
+              minLength={6}
+              required
+              className="input-premium h-11"
+            />
+          </div>
 
-                  <span className="h-2 w-2 rounded-full bg-[#176b52]" />
-                </div>
-              </div>
-            </div>
-          </section>
+          <div className="space-y-2.5 pt-1">
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) =>
+                  setAcceptedTerms(e.target.checked)
+                }
+                className="mt-0.5 h-4 w-4 accent-[#1f4d3a]"
+              />
 
-          {/* Right */}
-          <section className="flex items-center justify-center px-6 py-10 sm:px-10 lg:px-12">
-            <div className="w-full max-w-sm">
+              <span className="text-xs leading-5 text-muted-foreground">
+                I agree to the{" "}
+                <span className="font-medium text-foreground">
+                  Terms of Use
+                </span>
+                .
+              </span>
+            </label>
 
-              <div className="mb-8 lg:hidden">
-                <p className="text-lg font-semibold tracking-[-0.02em]">
-                  ISKOL
-                </p>
-              </div>
+            <label className="flex cursor-pointer items-start gap-3">
+              <input
+                type="checkbox"
+                checked={acceptedPrivacy}
+                onChange={(e) =>
+                  setAcceptedPrivacy(e.target.checked)
+                }
+                className="mt-0.5 h-4 w-4 accent-[#1f4d3a]"
+              />
 
-              <h2 className="text-3xl font-medium tracking-[-0.035em] text-[#161816]">
-                Create your account
-              </h2>
+              <span className="text-xs leading-5 text-muted-foreground">
+                I acknowledge the{" "}
+                <span className="font-medium text-foreground">
+                  Privacy Notice
+                </span>
+                .
+              </span>
+            </label>
+          </div>
 
-              <form onSubmit={handleSignUp} className="mt-8 space-y-5">
-
-                {/* Codename */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
-                    Codename
-                  </label>
-
-                  <input
-                    type="text"
-                    required
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="NightOwl27"
-                    className="h-11 w-full rounded-[9px] border border-[#dedfdd] bg-white px-3.5 text-sm text-[#171917] outline-none transition placeholder:text-[#aaa] focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
-                  />
-
-                  <p className="mt-2 text-xs text-[#999d98]">
-                    Shown inside ISKOL.
-                  </p>
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
-                    Email
-                  </label>
-
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@example.com"
-                    className="h-11 w-full rounded-[9px] border border-[#dedfdd] bg-white px-3.5 text-sm text-[#171917] outline-none transition placeholder:text-[#aaa] focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
-                  />
-                </div>
-
-                {/* Password */}
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
-                    Password
-                  </label>
-
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="At least 8 characters"
-                    className="h-11 w-full rounded-[9px] border border-[#dedfdd] bg-white px-3.5 text-sm text-[#171917] outline-none transition placeholder:text-[#aaa] focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
-                  />
-                </div>
-
-                {/* Agreements */}
-                <div className="space-y-3 pt-1">
-                  <label className="flex cursor-pointer items-center gap-3 text-sm text-[#666b66]">
-                    <input
-                      type="checkbox"
-                      checked={termsAccepted}
-                      onChange={(e) => setTermsAccepted(e.target.checked)}
-                      className="h-4 w-4 accent-[#176b52]"
-                    />
-
-                    <span>
-                      I agree to the{" "}
-                      <button
-                        type="button"
-                        className="font-medium text-[#232623] underline underline-offset-4"
-                      >
-                        Terms of Use
-                      </button>
-                    </span>
-                  </label>
-
-                  <label className="flex cursor-pointer items-center gap-3 text-sm text-[#666b66]">
-                    <input
-                      type="checkbox"
-                      checked={privacyAccepted}
-                      onChange={(e) => setPrivacyAccepted(e.target.checked)}
-                      className="h-4 w-4 accent-[#176b52]"
-                    />
-
-                    <span>
-                      I have read the{" "}
-                      <button
-                        type="button"
-                        className="font-medium text-[#232623] underline underline-offset-4"
-                      >
-                        Privacy Notice
-                      </button>
-                    </span>
-                  </label>
-                </div>
-
-                {/* Message */}
-                {message && (
-                  <p className="text-sm text-[#666b66]">
-                    {message}
-                  </p>
-                )}
-
-                {/* Submit */}
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="h-11 w-full rounded-[9px] bg-[#176b52] text-sm font-medium text-white transition hover:bg-[#125b45] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {loading ? "Creating account..." : "Create account"}
-                </button>
-              </form>
-
-              <p className="mt-6 text-center text-sm text-[#777b76]">
-                Already have an account?{" "}
-                <a
-                  href="/auth/login"
-                  className="font-medium text-[#202320] hover:underline"
-                >
-                  Sign in
-                </a>
+          {message && (
+            <div className="rounded-xl border border-red-500/15 bg-red-500/[0.05] px-4 py-3">
+              <p className="text-sm text-red-600 dark:text-red-400">
+                {message}
               </p>
             </div>
-          </section>
-        </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary h-12 w-full"
+          >
+            {loading
+              ? "Creating..."
+              : "Create account"}
+          </button>
+        </form>
+
+        <p className="mt-5 text-sm text-muted-foreground">
+          Already have an account?{" "}
+          <Link
+            href="/auth/login"
+            className="font-medium text-foreground transition-colors hover:text-primary"
+          >
+            Sign in
+          </Link>
+        </p>
       </div>
-    </main>
+    </AuthShell>
   );
 }

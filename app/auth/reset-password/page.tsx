@@ -1,20 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { FormEvent, useState } from "react";
+import Link from "next/link";
+import AuthShell from "@/components/auth-shell";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ResetPasswordPage() {
   const supabase = createClient();
-  const router = useRouter();
 
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] =
+    useState("");
+
   const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  async function handleReset(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+
     setMessage("");
 
     if (password !== confirmPassword) {
@@ -24,9 +28,10 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
 
-    const { error } = await supabase.auth.updateUser({
-      password,
-    });
+    const { error } =
+      await supabase.auth.updateUser({
+        password,
+      });
 
     setLoading(false);
 
@@ -35,58 +40,86 @@ export default function ResetPasswordPage() {
       return;
     }
 
-    router.push("/auth/login");
-    router.refresh();
+    setSuccess(true);
   }
 
   return (
-    <main className="min-h-screen bg-[#f3f4f1] px-4 py-8 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
-        <div className="w-full rounded-[20px] border border-[#e3e5e1] bg-white p-8 shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
+    <AuthShell mode="recovery">
+      {success ? (
+        <div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-lg font-semibold text-primary">
+            ✓
+          </div>
 
-          <p className="text-lg font-semibold tracking-[-0.02em]">
-            ISKOL
-          </p>
-
-          <h1 className="mt-10 text-3xl font-medium tracking-[-0.035em] text-[#161816]">
-            Set new password
+          <h1 className="mt-5 text-3xl font-semibold tracking-[-0.05em]">
+            Password updated.
           </h1>
 
-          <form onSubmit={handleReset} className="mt-8 space-y-5">
+          <p className="mt-4 text-[15px] leading-7 text-muted-foreground">
+            Your new password is ready to use.
+          </p>
+
+          <Link
+            href="/auth/login"
+            className="btn-primary mt-7"
+          >
+            Continue to sign in
+          </Link>
+        </div>
+      ) : (
+        <div>
+          <p className="text-sm font-medium text-primary">
+            New password
+          </p>
+
+          <h1 className="mt-3 text-[clamp(2.1rem,4vw,3.2rem)] font-semibold leading-none tracking-[-0.055em]">
+            Choose something secure.
+          </h1>
+
+          <p className="mt-4 text-[15px] leading-6 text-muted-foreground">
+            Enter your new ISKOL password.
+          </p>
+
+          <form
+            onSubmit={handleSubmit}
+            className="mt-8 space-y-5"
+          >
             <div>
-              <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
+              <label className="mb-2 block text-xs font-medium text-muted-foreground">
                 New password
               </label>
 
               <input
                 type="password"
-                required
-                minLength={8}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="At least 8 characters"
-                className="h-11 w-full rounded-[9px] border border-[#dedfdd] px-3.5 text-sm outline-none transition focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
+                onChange={(e) =>
+                  setPassword(e.target.value)
+                }
+                minLength={6}
+                required
+                className="input-premium h-12"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
+              <label className="mb-2 block text-xs font-medium text-muted-foreground">
                 Confirm password
               </label>
 
               <input
                 type="password"
-                required
-                minLength={8}
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Repeat your password"
-                className="h-11 w-full rounded-[9px] border border-[#dedfdd] px-3.5 text-sm outline-none transition focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
+                onChange={(e) =>
+                  setConfirmPassword(e.target.value)
+                }
+                minLength={6}
+                required
+                className="input-premium h-12"
               />
             </div>
 
             {message && (
-              <p className="text-sm text-[#666b66]">
+              <p className="text-sm text-red-600 dark:text-red-400">
                 {message}
               </p>
             )}
@@ -94,13 +127,15 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="h-11 w-full rounded-[9px] bg-[#176b52] text-sm font-medium text-white transition hover:bg-[#125b45] disabled:opacity-50"
+              className="btn-primary h-12 w-full"
             >
-              {loading ? "Updating..." : "Update password"}
+              {loading
+                ? "Updating..."
+                : "Update password"}
             </button>
           </form>
         </div>
-      </div>
-    </main>
+      )}
+    </AuthShell>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
+import Link from "next/link";
+import AuthShell from "@/components/auth-shell";
 import { createClient } from "@/lib/supabase/client";
 
 export default function ForgotPasswordPage() {
@@ -8,16 +10,22 @@ export default function ForgotPasswordPage() {
 
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  async function handleReset(e: React.FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    setMessage("");
-    setLoading(true);
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/reset-password`,
-    });
+    setLoading(true);
+    setMessage("");
+
+    const { error } =
+      await supabase.auth.resetPasswordForEmail(
+        email.trim(),
+        {
+          redirectTo: `${window.location.origin}/auth/reset-password`,
+        }
+      );
 
     setLoading(false);
 
@@ -26,44 +34,73 @@ export default function ForgotPasswordPage() {
       return;
     }
 
-    setMessage("Check your email for the password reset link.");
+    setSent(true);
   }
 
   return (
-    <main className="min-h-screen bg-[#f3f4f1] px-4 py-8 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-md items-center">
-        <div className="w-full rounded-[20px] border border-[#e3e5e1] bg-white p-8 shadow-[0_12px_40px_rgba(0,0,0,0.06)]">
+    <AuthShell mode="recovery">
+      {sent ? (
+        <div>
+          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-lg font-semibold text-primary">
+            ✓
+          </div>
 
-          <p className="text-lg font-semibold tracking-[-0.02em]">
-            ISKOL
-          </p>
-
-          <h1 className="mt-10 text-3xl font-medium tracking-[-0.035em] text-[#161816]">
-            Reset your password
+          <h1 className="mt-5 text-3xl font-semibold tracking-[-0.05em]">
+            Check your inbox.
           </h1>
 
-          <p className="mt-3 text-sm text-[#777b76]">
-            Enter the email linked to your account.
+          <p className="mt-4 text-[15px] leading-7 text-muted-foreground">
+            We sent a password reset link to{" "}
+            <span className="font-medium text-foreground">
+              {email}
+            </span>
+            .
           </p>
 
-          <form onSubmit={handleReset} className="mt-8 space-y-5">
+          <Link
+            href="/auth/login"
+            className="btn-secondary mt-7"
+          >
+            Back to sign in
+          </Link>
+        </div>
+      ) : (
+        <div>
+          <p className="text-sm font-medium text-primary">
+            Password recovery
+          </p>
+
+          <h1 className="mt-3 text-[clamp(2.1rem,4vw,3.2rem)] font-semibold leading-none tracking-[-0.055em]">
+            Reset your password.
+          </h1>
+
+          <p className="mt-4 text-[15px] leading-6 text-muted-foreground">
+            Enter the email connected to your ISKOL account.
+          </p>
+
+          <form
+            onSubmit={handleSubmit}
+            className="mt-8 space-y-5"
+          >
             <div>
-              <label className="mb-2 block text-sm font-medium text-[#2a2d2a]">
+              <label className="mb-2 block text-xs font-medium text-muted-foreground">
                 Email
               </label>
 
               <input
                 type="email"
-                required
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) =>
+                  setEmail(e.target.value)
+                }
                 placeholder="you@example.com"
-                className="h-11 w-full rounded-[9px] border border-[#dedfdd] px-3.5 text-sm outline-none transition focus:border-[#176b52] focus:ring-2 focus:ring-[#176b52]/10"
+                required
+                className="input-premium h-12"
               />
             </div>
 
             {message && (
-              <p className="text-sm text-[#666b66]">
+              <p className="text-sm text-red-600 dark:text-red-400">
                 {message}
               </p>
             )}
@@ -71,22 +108,22 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={loading}
-              className="h-11 w-full rounded-[9px] bg-[#176b52] text-sm font-medium text-white transition hover:bg-[#125b45] disabled:opacity-50"
+              className="btn-primary h-12 w-full"
             >
-              {loading ? "Sending..." : "Send reset link"}
+              {loading
+                ? "Sending..."
+                : "Send reset link"}
             </button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-[#777b76]">
-            <a
-              href="/auth/login"
-              className="font-medium text-[#202320] hover:underline"
-            >
-              Back to sign in
-            </a>
-          </p>
+          <Link
+            href="/auth/login"
+            className="mt-5 inline-block text-sm font-medium text-muted-foreground hover:text-primary"
+          >
+            ← Back to sign in
+          </Link>
         </div>
-      </div>
-    </main>
+      )}
+    </AuthShell>
   );
 }
